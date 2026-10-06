@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自製電子書 - 第四課 生字綜合</title>
+  <style>
+    @page { size: A4; margin: 12mm 15mm; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body {
+      margin: 0; padding: 0; background-color: #e2e8f0;
+      font-family: "Times New Roman", "標楷體", "DFKai-SB", "BiauKai", serif;
+      font-size: 14pt; line-height: 1.5; color: #111;
+    }
+
+    .classroom-toolbar {
+      position: fixed; top: 14px; right: 20px; z-index: 9999;
+      display: flex; align-items: center; gap: 3px;
+      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 4px 8px; border-radius: 40px;
+      border: 1px solid rgba(203, 213, 225, 0.9);
+      box-shadow: 0 4px 22px rgba(0, 0, 0, 0.12);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .tool-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; font-size: 18px; color: #334155;
+      background: transparent; border: 1px solid transparent; border-radius: 50%;
+      cursor: pointer; transition: all 0.15s ease; padding: 0; user-select: none;
+    }
+    .tool-btn:hover { background: #f1f5f9; transform: scale(1.1); }
+    .tool-btn.active { background: #0f172a; color: #ffffff; }
+    .btn-toggle-ans.active { background: #eff6ff; border-color: #3b82f6; }
+    .toolbar-divider { width: 1px; height: 18px; background: #cbd5e1; margin: 0 3px; }
+
+    .toc-menu {
+      display: none; position: absolute; top: 46px; left: 0;
+      background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18); padding: 6px 0;
+      min-width: 250px; max-height: 420px; overflow-y: auto; z-index: 10000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .toc-menu.show { display: block; animation: tocFadeIn 0.15s ease-out; }
+    @keyframes tocFadeIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .toc-menu-title {
+      padding: 6px 16px 8px 16px; font-size: 13px; font-weight: bold;
+      color: #64748b; border-bottom: 1px solid #f1f5f9;
+    }
+    .toc-menu-item {
+      padding: 8px 16px; font-size: 14px; color: #334155; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: background 0.12s, color 0.12s;
+    }
+    .toc-menu-item:hover { background: #eff6ff; color: #2563eb; font-weight: bold; }
+    .toc-page-badge { font-size: 12px; color: #94a3b8; font-weight: normal; }
+
+    .pen-options {
+      display: none; align-items: center; gap: 6px; background: #f8fafc;
+      padding: 3px 8px; border-radius: 20px; border: 1px solid #e2e8f0; margin-left: 2px;
+    }
+    .color-picker { display: flex; align-items: center; gap: 5px; }
+    .color-dot {
+      width: 16px; height: 16px; border-radius: 50%; cursor: pointer;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);
+    }
+    .color-dot.active { transform: scale(1.2); box-shadow: 0 0 0 2px #0f172a; }
+    .size-picker { display: flex; align-items: center; gap: 3px; }
+    .size-btn {
+      border: 1px solid #cbd5e1; background: #fff; color: #475569; font-size: 11px;
+      font-weight: bold; padding: 2px 7px; border-radius: 10px; cursor: pointer;
+    }
+    .size-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+
+    .pages-container { padding: 20px 0 40px 0; }
+    .page {
+      width: 210mm; min-height: 297mm; padding: 14mm 16mm; margin: 0 auto 25px auto;
+      background: #ffffff; box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+      page-break-after: always; break-after: page; position: relative;
+    }
+    .drawing-canvas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 20; pointer-events: none;
+    }
+    body.pen-mode .drawing-canvas { pointer-events: auto; cursor: crosshair; }
+
+    .page-header {
+      display: flex; justify-content: space-between; border-bottom: 2px solid #334155;
+      padding-bottom: 6px; margin-bottom: 12px; font-size: 13pt; font-weight: bold;
+    }
+    .main-title { font-size: 18pt; font-weight: 900; text-align: center; margin: 4px 0 12px 0; }
+
+    .reading-box {
+      border: 2px dashed #60a5fa; background-color: #eff6ff; border-radius: 10px;
+      padding: 12px 16px; margin: 10px 0 18px 0; font-size: 15pt; line-height: 1.7;
+      position: relative;
+    }
+    .audio-btn-inline {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #2563eb; color: #ffffff; border: none; padding: 4px 12px;
+      border-radius: 20px; font-size: 12pt; cursor: pointer; font-weight: bold;
+      transition: all 0.15s ease; box-shadow: 0 2px 5px rgba(37,99,235,0.3);
+      vertical-align: middle; margin-left: 6px;
+    }
+    .audio-btn-inline:hover { background: #1d4ed8; transform: translateY(-1px); }
+    .audio-btn-inline:active { transform: translateY(0); }
+
+    .sound-listen-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #0284c7; color: #ffffff; border: none; padding: 4px 12px;
+      border-radius: 16px; font-size: 12pt; cursor: pointer; font-weight: bold;
+      margin: 0 4px; vertical-align: middle; transition: all 0.15s ease;
+      box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);
+    }
+    .sound-listen-btn:hover { background: #0369a1; transform: scale(1.05); }
+
+    .task-card {
+      border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 16px;
+      margin-bottom: 16px; background-color: #ffffff; transition: all 0.3s ease;
+    }
+    .task-card.active-task {
+      border-color: #2563eb; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+    }
+    .task-card.completed-task {
+      border-color: #10b981; background-color: #f0fdf4;
+    }
+    .task-card.locked-task {
+      opacity: 0.45; pointer-events: none; filter: grayscale(0.8);
+    }
+    .show-ans .task-card, .show-ans .task-card.locked-task {
+      opacity: 1 !important; pointer-events: auto !important; filter: none !important;
+    }
+
+    .task-title-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      font-weight: bold; font-size: 14pt; margin-bottom: 8px;
+    }
+    .status-badge {
+      font-size: 11pt; padding: 2px 8px; border-radius: 12px; font-weight: normal;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .status-badge.pending { background: #f1f5f9; color: #64748b; }
+    .status-badge.success { background: #dcfce7; color: #166534; font-weight: bold; }
+
+    /* 改為橫向三格 (左、中、右)，並加大按鈕與間距，方便腦麻學生獨立點擊 */
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .opt-btn {
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid #cbd5e1; background: #ffffff; padding: 14px 8px;
+      border-radius: 12px; font-size: 15pt; cursor: pointer; text-align: center;
+      transition: all 0.15s; font-family: inherit; width: 100%; min-height: 56px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    .opt-btn:hover { background: #f8fafc; border-color: #3b82f6; }
+
+    .opt-btn.correct-selected, .show-ans .opt-btn.is-correct {
+      border-color: #dc2626 !important; background-color: #fef2f2 !important;
+      color: #dc2626 !important; font-weight: bold !important;
+      box-shadow: inset 0 0 0 1px #dc2626;
+    }
+    .opt-btn.wrong-selected {
+      border-color: #ef4444; background-color: #fef2f2; color: #991b1b;
+      animation: shake 0.3s ease;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
+
+    .feedback-msg {
+      margin-top: 8px; font-size: 13pt; font-weight: bold; display: none;
+    }
+    .feedback-msg.show-correct { display: block; color: #166534; }
+    .feedback-msg.show-wrong { display: block; color: #dc2626; }
+
+    .toast-notice {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #0f172a; color: #fff; padding: 10px 20px; border-radius: 30px;
+      font-size: 13px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      display: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    @media print {
+      body { background: transparent !important; padding: 0 !important; }
+      .no-print, .classroom-toolbar, .toc-menu, .drawing-canvas, .audio-btn-inline, .sound-listen-btn, .status-badge, .feedback-msg {
+        display: none !important;
+      }
+      .page { margin: 0 !important; box-shadow: none !important; width: 100% !important; min-height: auto !important; padding: 0 !important; }
+      .task-card, .task-card.locked-task { opacity: 1 !important; filter: none !important; pointer-events: auto !important; border: 1px solid #475569 !important; background: transparent !important; margin-bottom: 12px !important; }
+      .opt-btn { border: none !important; padding: 2px 0 !important; background: transparent !important; color: #000 !important; }
+      .opt-btn.correct-selected, .opt-btn.is-correct { border: none !important; background: transparent !important; color: inherit !important; font-weight: normal !important; box-shadow: none !important; }
+      .reading-box { border: 1px solid #000 !important; background: transparent !important; color: #000 !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="classroom-toolbar no-print">
+    <!-- 1. 目錄跳轉按鈕 -->
+    <div style="position: relative;">
+      <button class="tool-btn" id="tocBtn" onclick="toggleTocMenu(event)" title="章節目錄導覽">
+        📑
+      </button>
+      <div class="toc-menu" id="tocMenu">
+        <div class="toc-menu-title">📖 單元章節目錄</div>
+        <div class="toc-menu-item" onclick="jumpTo('reading-section')"><span>2. 閱讀小短文</span><span class="toc-page-badge">P.1</span></div>
+        <div class="toc-menu-item" onclick="jumpTo('task-card-1')"><span>任務 1：讀音辨識 (運動)</span><span class="toc-page-badge">P.1</span></div>
+        <div class="toc-menu-item" onclick="jumpTo('task-card-2')"><span>任務 2：讀音辨識 (可愛)</span><span class="toc-page-badge">P.1</span></div>
+        <div class="toc-menu-item" onclick="jumpTo('task-card-3')"><span>任務 3：讀音辨識 (笑容)</span><span class="toc-page-badge">P.1</span></div>
+        <div class="toc-menu-item" onclick="jumpTo('task-card-4')"><span>任務 4：課文理解 1</span><span class="toc-page-badge">P.1</span></div>
+        <div class="toc-menu-item" onclick="jumpTo('task-card-5')"><span>任務 5：課文理解 2</span><span class="toc-page-badge">P.1</span></div>
+      </div>
+    </div>
+
+    <!-- 2. 答案開關 -->
+    <button class="tool-btn btn-toggle-ans" id="toggleAllAnsBtn" onclick="toggleAllAnswers()" title="一鍵全開/全隱答案">
+      <span id="ansIcon">👁️</span>
+    </button>
+
+    <!-- 3. 畫筆開關 -->
+    <button class="tool-btn" id="penBtn" onclick="togglePenMode()" title="螢光筆/板書筆">
+      ✏️
+    </button>
+
+    <!-- 4. 畫筆選單 (顏色與粗細) -->
+    <div class="pen-options" id="penOptions">
+      <div class="color-picker">
+        <span class="color-dot active" style="background:#facc15;" onclick="setPenColor('rgba(250, 204, 21, 0.45)', this)" title="螢光黃"></span>
+        <span class="color-dot" style="background:#ef4444;" onclick="setPenColor('rgba(239, 68, 68, 0.8)', this)" title="紅筆"></span>
+        <span class="color-dot" style="background:#3b82f6;" onclick="setPenColor('rgba(37, 99, 235, 0.8)', this)" title="藍筆"></span>
+        <span class="color-dot" style="background:#10b981;" onclick="setPenColor('rgba(16, 185, 129, 0.8)', this)" title="綠筆"></span>
+      </div>
+      <div style="width:1px; height:14px; background:#cbd5e1; margin:0 2px;"></div>
+      <div class="size-picker">
+        <button class="size-btn" onclick="setPenSize(4, this)">細</button>
+        <button class="size-btn" onclick="setPenSize(10, this)">中</button>
+        <button class="size-btn active" onclick="setPenSize(20, this)">粗</button>
+      </div>
+    </div>
+
+    <!-- 5. 清除畫跡 -->
+    <button class="tool-btn" onclick="clearAllDrawings()" title="清除本卷筆跡">
+      🧹
+    </button>
+
+    <div class="toolbar-divider"></div>
+
+    <!-- 6. 純淨列印 -->
+    <button class="tool-btn" onclick="smartPrint()" title="列印純淨學生白紙卷">
+      🖨️
+    </button>
+
+    <!-- 7. 新分頁全螢幕開啟 -->
+    <button class="tool-btn" onclick="openInNewTab()" title="在全螢幕獨立分頁中授課">
+      ↗
+    </button>
+  </div>
+
+  <div id="toastNotice" class="toast-notice"></div>
+
+  <div class="pages-container">
+    <div class="page" id="page-1">
+      <canvas class="drawing-canvas"></canvas>
+
+      <!-- 頁面標頭 -->
+      <div class="page-header">
+        <span>泰山國小資源班國語學習單</span>
+        <span>班級：____年____班</span>
+        <span>姓名：________</span>
+      </div>
+
+      <div class="main-title">第四課 生字綜合</div>
+
+      <div class="reading-box" id="reading-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong>2. 閱讀小短文</strong>
+          <div class="no-print">
+            <button class="audio-btn-inline" onclick="playArticleTTS()">🔊 聽文章</button>
+            <button class="audio-btn-inline" style="background:#64748b;" onclick="stopTTS()">⏹️ 停止</button>
+          </div>
+        </div>
+        <div id="article-text">
+          今天我們在操場一起運動，大家都流汗了，每個人都溼答答的，結束後一步步往教室走。哇！天上飄著可愛的氣球，大家的笑容都好開心。
+        </div>
+      </div>
+
+      <div style="font-weight: bold; margin: 14px 0 10px 0; font-size: 15pt; border-bottom: 2px solid #000; padding-bottom: 4px;">
+        請完成以下任務
+      </div>
+
+      <!-- 任務 1 -->
+      <div class="task-card active-task" id="task-card-1">
+        <div class="task-title-bar">
+          <span>1. 根據讀音【 <button class="sound-listen-btn no-print" onclick="speakText('運動')">🔊 點我聽讀音</button> 】找出正確的語詞。</span>
+          <span class="status-badge pending" id="badge-1">進行中</span>
+        </div>
+        <div class="options-grid" id="opts-1">
+          <button class="opt-btn" onclick="checkTaskAnswer(1, false, this)"> (A) 運送</button>
+          <button class="opt-btn is-correct" onclick="checkTaskAnswer(1, true, this)"> (B) 運動</button>
+          <button class="opt-btn" onclick="checkTaskAnswer(1, false, this)"> (C) 運用</button>
+        </div>
+        <div class="feedback-msg" id="fb-1"></div>
+      </div>
+
+      <!-- 任務 2 -->
+      <div class="task-card locked-task" id="task-card-2">
+        <div class="task-title-bar">
+          <span>2. 根據讀音【 <button class="sound-listen-btn no-print" onclick="speakText('可愛')">🔊 點我聽讀音</button> 】找出正確的語詞。</span>
+          <span class="status-badge pending" id="badge-2">未解鎖</span>
+        </div>
+        <div class="options-grid" id="opts-2">
+          <button class="opt-btn is-correct" onclick="checkTaskAnswer(2, true, this)"> (A) 可愛</button>
+          <button class="opt-btn" onclick="checkTaskAnswer(2, false, this)"> (B) 可口</button>
+          <button class="opt-btn" onclick="checkTaskAnswer(2, false, this)"> (C) 可惜</button>
+        </div>
+        <div class="feedback-msg" id="fb-2"></div>
+      </div>
+
+      <!-- 任務 3 -->
+      <div class="task-card locked-task" id="task-card-3">
+        <div class="task-title-bar">
+          <span>3. 根據讀音【 <button class="sound-listen-btn no-print" onclick="speakText('笑容')">🔊 點我聽讀音</button> 】找出正確的語詞。</span>
+          <span class="status-badge pending" id="badge-3">未解鎖</span>
+        </div>
+        <div class="options-grid" id="opts-3">
+          <button class="opt-btn" onclick="checkTaskAnswer(3, false, this)"> (A) 內容</button>
+          <button class="opt-btn" onclick="checkTaskAnswer(3, false, this)"> (B) 效果</button>
+          <button class="opt-btn is-correct" onclick="checkTaskAnswer(3, true, this)"> (C) 笑容</button>
+        </div>
+        <div class="feedback-msg" id="fb-3"></div>
+      </div>
+
+      <!-- 任務 4 -->
+      <div class="task-card locked-task" id="task-card-4">
+        <div class="task-title-bar">
+          <span>4. ( &nbsp; ) 大家運動後怎麼樣？ <button class="sound-listen-btn no-print" onclick="speakText('大家運動後怎麼樣？')">🔊 點我聽讀音</button></span>
+          <span class="status-badge pending" id="badge-4">未解鎖</span>
+        </div>
+        <div class="options-grid" id="opts-4">
+          <button class="opt-btn" onclick="checkTaskAnswer(4, false, this)"> (A) 可愛</button>
+          <button class="opt-btn is-correct" onclick="checkTaskAnswer(4, true, this)"> (B) 流汗</button>
+          <button class="opt-btn" onclick="checkTaskAnswer(4, false, this)"> (C) 氣球</button>
+        </div>
+        <div class="feedback-msg" id="fb-4"></div>
+      </div>
+
+      <!-- 任務 5 -->
+      <div class="task-card locked-task" id="task-card-5">
+        <div class="task-title-bar">
+          <span>5. ( &nbsp; ) 結束運動後大家去哪裡？ <button class="sound-listen-btn no-print" onclick="speakText('結束運動後大家去哪裡？')">🔊 點我聽讀音</button></span>
+          <span class="status-badge pending" id="badge-5">未解鎖</span>
+        </div>
+        <div class="options-grid" id="opts-5">
+          <button class="opt-btn" onclick="checkTaskAnswer(5, false, this)"> (A) 繼續跑步</button>
+          <button class="opt-btn" onclick="checkTaskAnswer(5, false, this)"> (B) 去安親班</button>
+          <button class="opt-btn is-correct" onclick="checkTaskAnswer(5, true, this)"> (C) 往教室走</button>
+        </div>
+        <div class="feedback-msg" id="fb-5"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // 1. Text-To-Speech (TTS) 語音播放 logic（優先採用在地台灣繁體中文發音引擎，聲音更溫和自然）
+    let availableVoices = [];
+    function loadVoices() {
+      if ('speechSynthesis' in window) {
+        availableVoices = window.speechSynthesis.getVoices();
+      }
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+      loadVoices();
+    }
+
+    function getTaiwanVoice() {
+      if (!availableVoices.length && 'speechSynthesis' in window) {
+        availableVoices = window.speechSynthesis.getVoices();
+      }
+      // 搜尋系統中的台灣中文 (zh-TW, zh_TW) 語音
+      const twVoices = availableVoices.filter(v => v.lang === 'zh-TW' || v.lang === 'zh_TW');
+      const preferred = twVoices.find(v => 
+        v.name.includes('Mei-Jia') || 
+        v.name.includes('Taiwan') || 
+        v.name.includes('國語') || 
+        v.name.includes('HanHan') || 
+        v.name.includes('Yating') ||
+        v.name.includes('HsiaoChen')
+      );
+      if (preferred) return preferred;
+      if (twVoices.length > 0) return twVoices[0];
+      return availableVoices.find(v => v.lang.startsWith('zh')) || null;
+    }
+
+    function speakText(text) {
+      if (!('speechSynthesis' in window)) {
+        showToast('您的瀏覽器不支援語音朗讀功能！');
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-TW';
+      utterance.rate = 0.8; // 專為資源班與腦麻學生調整語速，提高清晰度
+      utterance.pitch = 1.0;
+      
+      const twVoice = getTaiwanVoice();
+      if (twVoice) {
+        utterance.voice = twVoice;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function playArticleTTS() {
+      const text = document.getElementById('article-text').innerText;
+      speakText(text);
+    }
+
+    function stopTTS() {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    var currentUnlockedTask = 1;
+
+    function checkTaskAnswer(taskNum, isCorrect, btnEl) {
+      if (document.body.classList.contains('pen-mode')) return;
+      
+      const card = document.getElementById('task-card-' + taskNum);
+      const fb = document.getElementById('fb-' + taskNum);
+      const badge = document.getElementById('badge-' + taskNum);
+      const opts = document.querySelectorAll('#opts-' + taskNum + ' .opt-btn');
+
+      opts.forEach(b => {
+        b.classList.remove('correct-selected', 'wrong-selected');
+      });
+
+      if (isCorrect) {
+        btnEl.classList.add('correct-selected');
+        card.classList.remove('active-task');
+        card.classList.add('completed-task');
+        badge.textContent = '已完成 ✓';
+        badge.className = 'status-badge success';
+        fb.textContent = '🎉 太棒了！答對了！';
+        fb.className = 'feedback-msg show-correct';
+
+        speakText('答對了！太棒了！');
+
+        // 解鎖下一關
+        const nextTask = taskNum + 1;
+        const nextCard = document.getElementById('task-card-' + nextTask);
+        if (nextCard) {
+          setTimeout(() => {
+            nextCard.classList.remove('locked-task');
+            nextCard.classList.add('active-task');
+            const nextBadge = document.getElementById('badge-' + nextTask);
+            if (nextBadge) nextBadge.textContent = '進行中';
+            nextCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 800);
+        } else {
+          setTimeout(() => {
+            showToast('🏆 恭喜你完成了所有任務！表現超棒！');
+          }, 600);
+        }
+      } else {
+        btnEl.classList.add('wrong-selected');
+        fb.textContent = '❌ 再試一次看看喔！';
+        fb.className = 'feedback-msg show-wrong';
+        speakText('再試一次喔！');
+      }
+    }
+
+    function toggleTocMenu(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('tocMenu');
+      if (menu) menu.classList.toggle('show');
+    }
+
+    function jumpTo(targetId) {
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const menu = document.getElementById('tocMenu');
+      if (menu) menu.classList.remove('show');
+    }
+
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('tocMenu');
+      const btn = document.getElementById('tocBtn');
+      if (menu && menu.classList.contains('show')) {
+        if (!menu.contains(e.target) && e.target !== btn) {
+          menu.classList.remove('show');
+        }
+      }
+    });
+
+    var isAllAnsShown = false;
+    function toggleAllAnswers() {
+      isAllAnsShown = !isAllAnsShown;
+      var container = document.querySelector('.pages-container');
+      var btn = document.getElementById('toggleAllAnsBtn');
+      var btnIcon = document.getElementById('ansIcon');
+      if (isAllAnsShown) {
+        container.classList.add('show-ans'); 
+        btn.classList.add('active'); 
+        btnIcon.textContent = '🙈';
+      } else {
+        container.classList.remove('show-ans'); 
+        btn.classList.remove('active'); 
+        btnIcon.textContent = '👁️';
+      }
+    }
+
+    // 畫筆繪圖邏輯
+    var isPenMode = false;
+    var currentPenColor = 'rgba(250, 204, 21, 0.45)';
+    var currentPenSize = 20;
+
+    function setPenColor(color, el) {
+      currentPenColor = color;
+      document.querySelectorAll('.color-dot').forEach(function(d) { d.classList.remove('active'); });
+      el.classList.add('active');
+    }
+
+    function setPenSize(size, el) {
+      currentPenSize = size;
+      document.querySelectorAll('.size-btn').forEach(function(b) { b.classList.remove('active'); });
+      el.classList.add('active');
+    }
+
+    function togglePenMode() {
+      isPenMode = !isPenMode;
+      document.body.classList.toggle('pen-mode', isPenMode);
+      var penBtn = document.getElementById('penBtn');
+      var penOptions = document.getElementById('penOptions');
+      if (isPenMode) { penBtn.classList.add('active'); if (penOptions) penOptions.style.display = 'flex'; }
+      else { penBtn.classList.remove('active'); if (penOptions) penOptions.style.display = 'none'; }
+    }
+
+    function initCanvases() {
+      document.querySelectorAll('.page').forEach(function(page) {
+        var canvas = page.querySelector('.drawing-canvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        function resizeCanvas() { canvas.width = page.clientWidth; canvas.height = page.clientHeight; }
+        resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+        var isDrawing = false, lastX = 0, lastY = 0;
+        
+        canvas.addEventListener('mousedown', function(e) {
+          if (!isPenMode) return; isDrawing = true;
+          var rect = canvas.getBoundingClientRect(); lastX = e.clientX - rect.left; lastY = e.clientY - rect.top;
+        });
+        canvas.addEventListener('mousemove', function(e) {
+          if (!isDrawing || !isPenMode) return;
+          var rect = canvas.getBoundingClientRect(); var currX = e.clientX - rect.left; var currY = e.clientY - rect.top;
+          ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(currX, currY);
+          ctx.strokeStyle = currentPenColor; ctx.lineWidth = currentPenSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+          lastX = currX; lastY = currY;
+        });
+        window.addEventListener('mouseup', function() { isDrawing = false; });
+      });
+    }
+    window.addEventListener('load', initCanvases);
+
+    function clearAllDrawings() {
+      document.querySelectorAll('.drawing-canvas').forEach(function(canvas) {
+        var ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height);
+      });
+    }
+
+    function showToast(msg) {
+      var toast = document.getElementById('toastNotice');
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(function() { toast.style.display = 'none'; }, 3000);
+    }
+
+    function getCleanWorksheetHTML(triggerPrintImmediately) {
+      var clonedDoc = document.documentElement.cloneNode(true);
+      var container = clonedDoc.querySelector('.pages-container');
+      if (container) container.classList.remove('show-ans');
+      
+      var toast = clonedDoc.querySelector('#toastNotice');
+      if (toast) toast.remove();
+
+      if (triggerPrintImmediately) {
+        var autoPrintScript = document.createElement('script');
+        autoPrintScript.textContent = 'window.addEventListener("load", function() { setTimeout(function() { window.print(); }, 400); });';
+        clonedDoc.querySelector('body').appendChild(autoPrintScript);
+      }
+      return '<!DOCTYPE html>\n<html lang="zh-TW">' + clonedDoc.innerHTML + '</html>';
+    }
+
+    function smartPrint() {
+      try {
+        var htmlContent = getCleanWorksheetHTML(true);
+        var blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        var blobUrl = URL.createObjectURL(blob);
+        var win = window.open(blobUrl, '_blank');
+        if (!win) {
+          showToast('若列印視窗未跳出，請允許彈跳視窗或按 Ctrl+P！');
+          window.print();
+        }
+      } catch (e) {
+        window.print();
+      }
+    }
+
+    function openInNewTab() {
+      try {
+        var htmlContent = getCleanWorksheetHTML(false);
+        var blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        var blobUrl = URL.createObjectURL(blob);
+        var win = window.open(blobUrl, '_blank');
+        if (!win) {
+          showToast('請允許瀏覽器彈出式視窗，以順利在新分頁打開！');
+        }
+      } catch (e) {
+        showToast('無法在新分頁開啟，請嘗試允許彈跳視窗。');
+      }
+    }
+  </script>
+</body>
+</html>
